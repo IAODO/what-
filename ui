@@ -23,8 +23,14 @@ local Library do
     local RunService = game:GetService("RunService")
     local CoreGui = cloneref and cloneref(game:GetService("CoreGui")) or game:GetService("CoreGui")
 
-    gethui = gethui or function()
-        return CoreGui
+    do
+        local _gh = gethui
+        gethui = function()
+            if type(_gh) == "function" then
+                return _gh()
+            end
+            return CoreGui
+        end
     end
 
     local LocalPlayer = Players.LocalPlayer
