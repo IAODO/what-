@@ -54,6 +54,15 @@ local Library do
 
     local InstanceNew = Instance.new
 
+    -- Image / MidImage / etc. must be ContentId strings; hooks may return Instances — coerce or fall back.
+    local UI_IMAGE_PLACEHOLDER = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    local SCROLLBAR_IMAGE_FALLBACK = "rbxassetid://112971167999062"
+    local function asImageContentId(v)
+        if v == nil then return nil end
+        if type(v) == "string" and v ~= "" then return v end
+        return nil
+    end
+
     local MathClamp = math.clamp
     local MathFloor = math.floor
     local MathAbs = math.abs
@@ -305,7 +314,18 @@ local Library do
             setmetatable(NewItem, Instances)
 
             for Property, Value in NewItem.Properties do
-                NewItem.Instance[Property] = Value
+                if Property == "Image" or Property == "MidImage" or Property == "TopImage" or Property == "BottomImage" then
+                    local s = asImageContentId(Value)
+                    if s then
+                        NewItem.Instance[Property] = s
+                    elseif Property == "MidImage" or Property == "TopImage" or Property == "BottomImage" then
+                        NewItem.Instance[Property] = SCROLLBAR_IMAGE_FALLBACK
+                    else
+                        NewItem.Instance[Property] = UI_IMAGE_PLACEHOLDER
+                    end
+                else
+                    NewItem.Instance[Property] = Value
+                end
             end
 
             return NewItem
@@ -564,12 +584,21 @@ local Library do
 
     Library.GetImage = function(self, Image)
         local ImageData = self.Images[Image]
-
-        if not ImageData then 
-            return
+        if not ImageData then
+            return SCROLLBAR_IMAGE_FALLBACK
         end
-
-        return getcustomasset(self.Folders.Assets .. "/" .. ImageData[1])
+        local path = self.Folders.Assets .. "/" .. ImageData[1]
+        if not getcustomasset then
+            return SCROLLBAR_IMAGE_FALLBACK
+        end
+        local ok, result = pcall(function()
+            return getcustomasset(path)
+        end)
+        local id = asImageContentId(ok and result or nil)
+        if id then
+            return id
+        end
+        return SCROLLBAR_IMAGE_FALLBACK
     end
 
     Library.Round = function(self, Number, Float)
@@ -1799,7 +1828,17 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             }) 
 
-            Items["Avatar"].Instance.Image = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+            do
+                local av = Items["Avatar"].Instance
+                local ok, thumb = pcall(function()
+                    return Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+                end)
+                if ok and asImageContentId(thumb) then
+                    av.Image = thumb
+                else
+                    av.Image = UI_IMAGE_PLACEHOLDER
+                end
+            end
 
             Instances:Create("UICorner", {
                 Parent = Items["Avatar"].Instance,
